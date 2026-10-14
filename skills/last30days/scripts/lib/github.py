@@ -179,7 +179,7 @@ def _compute_relevance(
 # the qualifier so no stray `()`/`""` residue reaches the query (issue #952).
 # The plain regex's boundary also accepts wrapper openers so a qualifier with
 # a missing closer ("(created:>2025-03-20") is still stripped rather than
-# leaking into the query; only the stray opener survives, harmlessly.
+# leaking into the query; qualifier-only wrapper residue is discarded below.
 QUALIFIER_KEYS = frozenset({
     "archived", "assignee", "author", "base", "closed", "comments", "commenter",
     "created", "fork", "forks", "head", "in", "interactions", "involves", "is",
@@ -220,6 +220,11 @@ def strip_search_qualifiers(text: str) -> str:
     """
     stripped = _WRAPPED_QUALIFIER_RE.sub(" ", text)
     stripped = _QUALIFIER_RE.sub(" ", stripped)
+    # Malformed/nested wrappers can leave only punctuation after a qualifier
+    # is removed (#969). There is no subject to search in that case. Keep
+    # wrappers around actual topic text, including unbalanced ones like "ai (foo".
+    if stripped != text and re.fullmatch(r"[\s()\[\]\"']*", stripped):
+        return ""
     while True:
         cleaned = _EMPTY_WRAPPER_RE.sub("", stripped)
         if cleaned == stripped:
